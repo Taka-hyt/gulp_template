@@ -1,66 +1,54 @@
-var gulp = require("gulp");
-var sass = require("gulp-sass");
-const plumber = require("gulp-plumber");
-const sourcemaps = require("gulp-sourcemaps");
-const autoprefixer = require("gulp-autoprefixer");
-const gcmq = require("gulp-group-css-media-queries");
-const cleanCSS = require("gulp-clean-css");
-const rename = require("gulp-rename");
-const notify = require("gulp-notify");
-const mode = require("gulp-mode")({
-    modes: ["production", "development"],
-    default: "development",
-    verbose: false,
-});
+const gulp = require('gulp');
+const imagemin = require('gulp-imagemin');
+const mozjpeg = require('imagemin-mozjpeg');
+const pngquant = require('imagemin-pngquant');
+const imageminGif = require('imagemin-gifsicle');
+const imageminSvg = require('imagemin-svgo');
 
 var paths = {
-    srcDir: "./src",
-    dstDir: "./dist",
-};
+    srcDir: './src',
+    dstDir: './dist'
+}
 
-// SassをCSSにコンパイルしてdistに吐き出す
-// タスクの名前
-function sassCompile() {
+// 画像を格納しているフォルダのパス
+var srcGlob = paths.srcDir + '/image';
+var dstGlob = paths.dstDir + '/image';
+
+// jpg,png,gif,svg画像の圧縮タスク
+function imageMin() {
     return (
-        gulp
-            // 参照するSassファイルのパスを記述する
-            .src(paths.srcDir + "/sass/**/*.{scss,sass}")
-            // 強制停止を防止、デスクトップにエラーを通知する
-            .pipe(plumber(notify.onError("Error: <%= error.message %>")))
-            // ソースマップを初期化
-            .pipe(sourcemaps.init())
-            // Sassをコンパイルする
-            .pipe(sass({ outputStyle: "expanded" }))
-            .on("error", sass.logError)
-            // プレフィックスを自動で付けてくれる
-            .pipe(
-                autoprefixer({
-                    cascade: false,
-                })
-            )
-            // ソースマップの作成
-            .pipe(sourcemaps.write())
-            // メディアクエリごとにコードを整えてくれる
-            .pipe(gcmq())
-            // productionモード（buildコマンド）の時のみCSSをMinify化
-            // コメントアウトも削除してくれる
-            .pipe(mode.production(cleanCSS()))
-            // ファイル名を変更する
-            .pipe(
-                rename({
-                    extname: ".min.css",
-                })
-            )
-            // コンパイルしたファイルを吐き出すパスを記述する
-            .pipe(gulp.dest(paths.dstDir + "/css"))
+        // 参照するフォルダのパスを記述する
+        gulp.src(srcGlob + '/**/*.+(jpg|jpeg|png|gif|svg)')
+            .pipe(imagemin([
+                // pngの圧縮
+                pngquant({
+                    quality: [0.6, 0.8]
+                }),
+                // jpgの圧縮
+                mozjpeg({
+                    quality: 85,
+                    progressive: true
+                }),
+                // gifの圧縮
+                imageminGif({
+                    interlaced: false,
+                    optimizationLevel: 3,
+                    colors: 180
+                }),
+                // SVGの圧縮
+                imageminSvg()
+            ]
+            ))
+            // 圧縮したファイルの吐き出し先のパス
+            .pipe(gulp.dest(dstGlob))
     );
 }
 
-// src配下のファイルに変更があれば自動でコンパイルしてくれる
+// imageフォルダ配下に変更があれば自動でコンパイルしてくれる
 function watchFile(done) {
-    gulp.watch(paths.srcDir + "/sass/**/*.{scss,sass}", sassCompile);
+    gulp.watch(srcGlob + '/**/*.+(jpg|jpeg|png|gif|svg)', imageMin);
     done();
 }
 
-// タスクの実行！
-exports.default = gulp.series(sassCompile, watchFile);
+// タスクの実行
+exports.default = gulp.series(imageMin, watchFile);
